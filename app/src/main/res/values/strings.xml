@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">SimpleToDo</string>
+
+    <string-array name="colors_array">
+        <item>Default</item>
+        <item>Forest</item>
+        <item>Candy</item>
+        <item>Galaxy</item>
+
+    </string-array>
+
+</resources>
