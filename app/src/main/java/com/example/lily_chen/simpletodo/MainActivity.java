@@ -2,6 +2,7 @@ package com.example.lily_chen.simpletodo;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -13,12 +14,12 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.AdapterView.OnItemSelectedListener;
 
 import org.apache.commons.io.FileUtils;
 
@@ -35,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
     Spinner titleSpinner; //spinner to allow user to switch between lists
     String currentList;
     int mostRecentIndex; //index of the most recently edited list, to be loaded on start-up
+
+    private final int REQUEST_CODE = 11;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +71,32 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
+    /*****************************/
+    /* Launch Edit Item Activity */
+
+    public void launchEditItem(int pos, String text) {
+        // first parameter is the context, second is the class of the activity to launch
+        Intent i = new Intent(MainActivity.this, EditItemActivity.class);
+        i.putExtra("pos", pos);
+        i.putExtra("text", text);
+        startActivityForResult(i, REQUEST_CODE); // brings up the second activity
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // REQUEST_CODE is defined above
+        if (resultCode == RESULT_OK && requestCode == REQUEST_CODE) {
+            // Extract name value from result extras
+            String text = data.getExtras().getString("text");
+            int pos = data.getExtras().getInt("pos");
+            items.set(pos, text);
+            itemsAdapter.notifyDataSetChanged();
+            writeItems();
+        }
+    }
+
+    /*********************************************/
+    /* Methods called from Main Activity buttons */
+
     public void onAddItem(View v) {
         EditText etNewItem = (EditText) findViewById(R.id.etNewItem);
         String itemText = etNewItem.getText().toString();
@@ -98,6 +127,63 @@ public class MainActivity extends AppCompatActivity {
         });
         alert.show();
     }
+
+    /******************************/
+    /* Editing and deleting items */
+
+    private void setupListViewListener() {
+        // single click launches new activity to edit the item
+        lvItems.setOnItemClickListener(
+            new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> adapter, View item, final int pos, long id) {
+                    //launchEditItem(pos, items.get(pos));
+                    toggleStyle(item);
+                }
+            }
+        );
+
+        lvItems.setOnItemLongClickListener(
+            new AdapterView.OnItemLongClickListener() {
+                @Override
+                public boolean onItemLongClick(AdapterView<?> adapter, View item, final int pos, long id) {
+                    LayoutInflater li = LayoutInflater.from(MainActivity.this);
+                    View promptsView = li.inflate(R.layout.prompts, null);
+                    AlertDialog.Builder alert = new AlertDialog.Builder(MainActivity.this);
+                    alert.setView(promptsView);
+                    final EditText userInput = (EditText) promptsView
+                            .findViewById(R.id.editItemText);
+                    userInput.setText(items.get(pos));
+
+                    alert.setCancelable(false).setPositiveButton("Update",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                // get user input and set it to result
+                                // edit text
+                                items.set(pos, userInput.getText().toString());
+                                itemsAdapter.notifyDataSetChanged();
+                                writeItems();
+                            }
+                        })
+                        .setNegativeButton("Delete",
+                            new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dialog,int id) {
+                                    // get user input and set it to result
+                                    // edit text
+                                    items.remove(pos);
+                                    itemsAdapter.notifyDataSetChanged();
+                                    writeItems();
+                                }
+                            });
+                    alert.show();
+                    return true;
+                }
+            }
+        );
+    }
+
+    /****************************************/
+    /* Handles actions from Action Bar menu */
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -150,28 +236,27 @@ public class MainActivity extends AppCompatActivity {
                 View promptsView = li2.inflate(R.layout.prompts, null);
                 AlertDialog.Builder alert2 = new AlertDialog.Builder(MainActivity.this);
                 alert2.setView(promptsView);
-                final EditText userInput = (EditText) promptsView
-                        .findViewById(R.id.editItemText);
+                final EditText userInput = (EditText) promptsView.findViewById(R.id.editItemText);
 
                 alert2.setCancelable(false).setPositiveButton("Create New List",
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                // create new (empty) list and set up the screen accordingly
-                                String newListTitle = userInput.getText().toString();
-                                createNewList(newListTitle);
-                                listsAdapter.notifyDataSetChanged();
-                                titleSpinner.setSelection(lists.size()-1);
-                                currentList = newListTitle;
-                                readItems();
-                                itemsAdapter.notifyDataSetChanged();
-                            }
-                        })
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog,int id) {
+                        // create new (empty) list and set up the screen accordingly
+                        String newListTitle = userInput.getText().toString();
+                        createNewList(newListTitle);
+                        listsAdapter.notifyDataSetChanged();
+                        titleSpinner.setSelection(lists.size()-1);
+                        currentList = newListTitle;
+                        readItems();
+                        itemsAdapter.notifyDataSetChanged();
+                        }
+                    })
                 .setNegativeButton("Cancel",
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                dialog.dismiss();
-                            }
-                        });
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog,int id) {
+                            dialog.dismiss();
+                        }
+                    });
                 alert2.show();
                 return true;
 
@@ -208,6 +293,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /***************************************/
+    /* Spinner for switching between lists */
+
     private void setupSpinnerListener() {
         titleSpinner.setOnItemSelectedListener(new OnItemSelectedListener() {
             @Override
@@ -226,86 +314,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // Create a dialog that allows user to edit the item text or delete the item
-    private void setupListViewListener() {
-        lvItems.setOnItemClickListener(
-            new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> adapter, View item, final int pos, long id) {
-                    toggleStrikeThrough(item);
-                }
-            }
-        );
-
-        lvItems.setOnItemLongClickListener(
-                new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> adapter, View item, final int pos, long id) {
-                LayoutInflater li = LayoutInflater.from(MainActivity.this);
-                View promptsView = li.inflate(R.layout.prompts, null);
-                AlertDialog.Builder alert = new AlertDialog.Builder(MainActivity.this);
-                alert.setView(promptsView);
-                final EditText userInput = (EditText) promptsView
-                        .findViewById(R.id.editItemText);
-                userInput.setText(items.get(pos));
-
-                alert.setCancelable(false).setPositiveButton("Update",
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                // get user input and set it to result
-                                // edit text
-                                items.set(pos, userInput.getText().toString());
-                                itemsAdapter.notifyDataSetChanged();
-                                writeItems();
-                            }
-                        })
-                .setNegativeButton("Delete",
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                // get user input and set it to result
-                                // edit text
-                                items.remove(pos);
-                                itemsAdapter.notifyDataSetChanged();
-                                writeItems();
-                            }
-                        });
-                alert.show();
-                return true;
-            }
-        });
-    }
-
-    // Toggles the strike-through flag of a view. Currently broken; the strike-through
-    // stays with a particular view and does not get cleared or re-loaded upon switching
-    // between lists.
-    private void toggleStrikeThrough(View view) {
-        TextView item = (TextView) view;
-        Log.i("st", item.getPaintFlags() + "");
-        Log.i("st", Paint.STRIKE_THRU_TEXT_FLAG + "");
-        if ((item.getPaintFlags() & Paint.STRIKE_THRU_TEXT_FLAG) == 0) {
-            Log.i("st", "set flag");
-            item.setPaintFlags(item.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-        } else {
-            Log.i("st", "remove flag");
-            item.setPaintFlags(item.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
-        }
-    }
-
-    private void setBackgroundColor(int bgColor, int barColor) {
-        View view = this.getWindow().getDecorView();
-        view.setBackgroundResource(bgColor);
-        android.support.v7.app.ActionBar bar = getSupportActionBar();
-        bar.setBackgroundDrawable(new ColorDrawable(getResources().getInteger(barColor)));
-    }
-
-    private String getListsDir() {
-        //check if directory exists, if not, make it
-        File file = new File(getFilesDir().toString() + "/lists");
-        if (!file.exists()) {
-            file.mkdir();
-        }
-        return file.toString();
-    }
+    /*******************************/
+    /* Helper and set-up functions */
 
     private void readItems() {
         File todoFile = new File(getListsDir(), currentList);
@@ -332,6 +342,54 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Toggles the style of a view. None -> Bold -> Strike-through.
+    // Currently broken, the style stays with the view when we switch between different lists
+    private void toggleStyle(View view) {
+        TextView item = (TextView) view;
+        Log.i("st", item.getPaintFlags() + "");
+        Log.i("st", Paint.STRIKE_THRU_TEXT_FLAG + "");
+        if ((item.getPaintFlags() & Paint.FAKE_BOLD_TEXT_FLAG) == 0 &&
+            (item.getPaintFlags() & Paint.STRIKE_THRU_TEXT_FLAG) == 0 ) {
+            item.setPaintFlags(item.getPaintFlags() | Paint.FAKE_BOLD_TEXT_FLAG);
+        }
+        else if ((item.getPaintFlags() & Paint.FAKE_BOLD_TEXT_FLAG) != 0 &&
+                (item.getPaintFlags() & Paint.STRIKE_THRU_TEXT_FLAG) == 0 ) {
+            item.setPaintFlags(item.getPaintFlags() & ~Paint.FAKE_BOLD_TEXT_FLAG);
+            item.setPaintFlags(item.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        } else {
+            item.setPaintFlags(item.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+        }
+    }
+
+    private void setBackgroundColor(int bgColor, int barColor) {
+        View view = this.getWindow().getDecorView();
+        view.setBackgroundResource(bgColor);
+        android.support.v7.app.ActionBar bar = getSupportActionBar();
+        bar.setBackgroundDrawable(new ColorDrawable(getResources().getInteger(barColor)));
+    }
+
+    private void createNewList(String listName) {
+        File todoFile = new File(getListsDir(), listName);
+        try {
+            todoFile.createNewFile();
+            lists.add(listName);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // I decided to store my lists inside of a separate direction to avoid
+    // extraneous files, but it seems like there's still an automatically
+    // generated 'data' file...
+    private String getListsDir() {
+        //check if directory exists, if not, make it
+        File file = new File(getFilesDir().toString() + "/lists");
+        if (!file.exists()) {
+            file.mkdir();
+        }
+        return file.toString();
+    }
+
     // returns in the index of the most recently modified file.
     // the index is used to set the spinner correctly on start-up
     // or after deleting a file
@@ -349,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
         return lastModifiedIndex;
     }
 
+    // get all files that exists inside the list directory
     private ArrayList<File> getAllLists() {
         File filesDir = new File (getListsDir());
         File[] files = filesDir.listFiles();
@@ -364,22 +423,13 @@ public class MainActivity extends AppCompatActivity {
         return filesArrayList;
     }
 
+    // return list of strings to use in titleSpinner
     private ArrayList<String> getFileNames(ArrayList<File> files) {
         ArrayList<String> names = new ArrayList<String>();
         for (File f : files) {
             names.add(f.getName());
         }
         return names;
-    }
-
-    private void createNewList(String listName) {
-        File todoFile = new File(getListsDir(), listName);
-        try {
-            todoFile.createNewFile();
-            lists.add(listName);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     private void deleteList(String listName) {
